@@ -1,0 +1,148 @@
+session multi_core_regress
+{
+top_dir : $ENV(PWD)/regression/ ;
+pre_session_script : <text> echo "pre_session_script" </text>;
+};
+
+
+group all_test {
+
+      scan_script: "vm_scan.pl ius.flt shell.flt" ;
+      count : 1;
+      pre_commands: "";
+      timeout: 13000000;
+      sv_seed: random;
+
+      test read_miss_icache {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=read_miss_icache" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test shared_snoop_invalidate_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=shared_snoop_invalidate_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test snoop_mesi_update_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=snoop_mesi_update_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test lru_eviction_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=lru_eviction_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test dirty_replacement_read_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=dirty_replacement_read_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test write_miss_data_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=write_miss_data_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test icache_eviction_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=icache_eviction_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test lru_blk3_bias_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=lru_blk3_bias_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test dirty_evict_refill_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=dirty_evict_refill_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test wr_dirty_evict_refill_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=wr_dirty_evict_refill_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test mesi_full_transition_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=mesi_full_transition_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test randomized_stress_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=randomized_stress_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test snoop_exclusive_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=snoop_exclusive_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test exhaustive_interface_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=exhaustive_interface_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test lv2_write_hit_wrong_blk_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=lv2_write_hit_wrong_blk_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test lv2_read_miss_lru_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=lv2_read_miss_lru_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test lru_all_ways_icache_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=lru_all_ways_icache_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test snoop_seq_chain_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=snoop_seq_chain_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test proc_seq_chain_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=proc_seq_chain_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test apb_multi_miss_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=apb_multi_miss_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test snoop_seq_core13_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=snoop_seq_core13_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+      test snoop_seq_core02_test {
+         run_script: "cd $ENV(PWD) ; xrun -f run_vm.f +UVM_TESTNAME=snoop_seq_core02_test" ;
+           scan_script: "vm_scan.pl ius.flt shell.flt" ;
+   count : 1;
+      };
+
+};

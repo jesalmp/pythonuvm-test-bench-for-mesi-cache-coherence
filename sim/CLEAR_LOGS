@@ -1,0 +1,4 @@
+#!/bin/bash
+rm -rf logs/*.log
+rm -rf logs/*.shm
+rm -rf logs/.simvision
