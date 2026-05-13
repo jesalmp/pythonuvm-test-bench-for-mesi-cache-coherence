@@ -1,0 +1,7 @@
+All 5 files created successfully:
+
+- **`pyuvm_cocotb_tb/cpu_bfm.py`** (97 lines) — CpuBfm class with `drive_read`/`drive_write` methods, bit-level manipulation of shared 4-bit signals, LogicArray-based high-Z driving, and 110-cycle timeout polling.
+- **`pyuvm_cocotb_tb/cpu_driver.py`** (30 lines) — CpuDriver (uvm_driver) that gets transactions from sequencer, applies wait cycles, and delegates to CpuBfm for read/write operations.
+- **`pyuvm_cocotb_tb/cpu_monitor.py`** (71 lines) — CpuMonPacket data class and CpuMonitor (uvm_monitor) that watches cpu_rd/cpu_wr per-CPU bits, captures address/data, and publishes via analysis port.
+- **`pyuvm_cocotb_tb/sbus_monitor.py`** (83 lines) — SbusMonitor (uvm_monitor) that watches bus_lv1_lv2_gnt_proc for grants, detects BUS_RD/BUS_RDX/INVALIDATE via internal hierarchy signals, tracks snoop/shared status, and publishes SbusPacket.
+- **`pyuvm_cocotb_tb/cpu_agent.py`** (16 lines) — CpuAgent (uvm_agent) that instantiates sequencer, driver, and monitor, propagates cpu_id via ConfigDB, and connects driver to sequencer.

@@ -1,0 +1,170 @@
+Now I have a complete picture. Here is my comprehensive summary:
+
+---
+
+## Comprehensive Summary: 4-Core MESI Cache Coherence Design & Testbenches
+
+---
+
+### 1. TOP-LEVEL MODULE PORTS (`design/cache_top.sv`)
+
+The module `cache_top` supports 1, 2, or 4 cores via `ifdef ONE_CORE / DUAL_CORE / else (multicore)`.
+
+| Port | Direction | Width | Purpose |
+|------|-----------|-------|---------|
+| `clk` | input | 1 | System clock |
+| `resetn` | input | 1 | Active-low reset |
+| `lv2_rd_ps` | input | 1 | LV2 read pipelined stage (APB timing) |
+| `lv2_rd_pe` | input | 1 | LV2 read pipelined enable (APB timing) |
+| `lv2_wren` | input | 1 | LV2 write enable (APB timing) |
+| `cp_in_cacheen` | input | 1 | Copy-in-cache enable (APB timing) |
+| `data_bus_cpu_lv1_0` | **inout** | 32 | CPU0 ↔ LV1 data bus |
+| `addr_bus_cpu_lv1_0` | input | 32 | CPU0 → LV1 address bus |
+| `data_bus_cpu_lv1_1` | **inout** | 32 | CPU1 ↔ LV1 data bus |
+| `addr_bus_cpu_lv1_1` | input | 32 | CPU1 → LV1 address bus |
+| `data_bus_cpu_lv1_2` | **inout** | 32 | CPU2 ↔ LV1 data bus |
+| `addr_bus_cpu_lv1_2` | input | 32 | CPU2 → LV1 address bus |
+| `data_bus_cpu_lv1_3` | **inout** | 32 | CPU3 ↔ LV1 data bus |
+| `addr_bus_cpu_lv1_3` | input | 32 | CPU3 → LV1 address bus |
+| `cpu_rd` | input | 4 | Per-core read request (1 bit each) |
+| `cpu_wr` | input | 4 | Per-core write request |
+| `cpu_rden` | input | 4 | Per-core read enable (asserted 1 cycle after cpu_rd) |
+| `cpu_wren` | input | 4 | Per-core write enable (asserted 1 cycle after cpu_wr) |
+| `cpu_wr_done` | **output** | 4 | Per-core write acknowledgment |
+| `bus_lv1_lv2_gnt_proc` | input | 4 | Bus grant to each core's processor side |
+| `bus_lv1_lv2_req_proc` | **output** | 4 | Bus request from each core's processor side |
+| `bus_lv1_lv2_gnt_snoop` | input | 4 | Bus grant for snoop to each core |
+| `bus_lv1_lv2_req_snoop` | **output** | 4 | Bus snoop request from each core |
+| `data_in_bus_cpu_lv1` | **output** | 4 | Per-core: data is ready on data_bus_cpu_lv1 (read completion) |
+| `data_bus_lv2_mem` | **inout** | 32 | LV2 ↔ main memory data bus |
+| `addr_bus_lv2_mem` | **output** | 32 | LV2 → main memory address bus |
+| `mem_rd` | **output** | 1 | Memory read strobe |
+| `mem_wr` | **output** | 1 | Memory write strobe |
+| `mem_wr_done` | input | 1 | Memory write completion ack |
+| `bus_lv1_lv2_gnt_lv2` | input | 1 | Bus grant to LV2 |
+| `bus_lv1_lv2_req_lv2` | **output** | 1 | Bus request from LV2 |
+| `data_in_bus_lv2_mem` | input | 1 | Data available on lv2-mem bus |
+
+**Internal wiring**: LV1↔LV2 shared bus (`data_bus_lv1_lv2[31:0]`, `addr_bus_lv1_lv2[31:0]`) is internal wires. An APB bridge (psel/penable/pwrite/pready/prdata/pwdata) connects LV1 bus to the LV2 cache wrapper.
+
+---
+
+### 2. KEY PARAMETERS & DEFINES
+
+**LV1 Cache** (`design/lv1/def_lv1.sv`):
+- **256 KB, 4-way set-associative** (ASSOC_WID=2, ASSOC=4)
+- Address: 32 bits → Tag[31:16] (16 bits), Index[15:2] (14 bits), Offset[1:0] (2 bits)
+- Data width: 32 bits; Cache line: 32 bytes (`CACHE_DATA_WID = 1<<(2+3) = 32`)
+- MESI state: 2 bits per line; cache line = tag(16) + mesi(2) = 18 bits tag+mesi
+- LRU: 3-bit pseudo-LRU per set (`LRU_VAR_WID = (1<<2)-1 = 3`)
+- `NUM_OF_SETS = 1<<14 = 16384`; `CACHE_DEPTH = 1<<(14+2) = 65536` blocks total
+- ICache/DCache boundary: `IL_DL_ADDR_BOUND = 32'h3FFF_FFFF` (addr[31:30]==0 → ICache)
+
+**LV2 Cache** (`design/lv2/def_lv2.sv`):
+- **8 MB, 8-way set-associative** (ASSOC_WID=3, ASSOC=8)
+- Address: 32 bits → Tag[31:20] (12 bits), Index[19:2] (18 bits), Offset[1:0] (2 bits)
+- Same data width (32), MESI (2-bit), cache line 32 bytes
+
+---
+
+### 3. SV TESTBENCH ARCHITECTURE
+
+**Top-level** (`uvm/top.sv`):
+- Instantiates `cache_top` (DUT), `memory` (golden), `lrs_arbiter` (golden)
+- Creates 5 SV interfaces: `cpu_lv1_interface[0:3]`, `system_bus_interface`, `cpu_mesi_lru_interface[0:3]`, `cpu_apb_interface[0:3]`, `lv2_apb_interface`
+- Clock 10ns period, active-low reset released at 10ns
+- APB pipeline registers (`lv2_rd_ps`, `lv2_rd_pe`, `lv2_wren`, `cp_in_cacheen`) generated in top from internal DUT signals
+- VIF handles passed via `uvm_config_db`
+
+**Environment** (`uvm/env.sv`):
+- `cpu_agent_c cpu[0:3]` — each has driver, monitor, sequencer
+- `system_bus_monitor_c sbus_monitor` — monitors shared LV1-LV2 bus
+- `virtual_sequencer_c vsequencer` — holds references to all 4 CPU sequencers
+- `cache_scoreboard_c sb` — receives monitor packets from all 4 CPUs + system bus
+
+**Transaction** (`uvm/cpu_transaction_c.sv`):
+- Fields: `request_type` (READ_REQ/WRITE_REQ), `data[31:0]`, `address[31:0]`, `access_cache_type` (ICACHE_ACC/DCACHE_ACC), `wait_cycles`
+- Constraints: addr[31:30]==0 → ICache, else DCache; distribution weights for corner addresses; expected read data based on addr[3]
+
+**Sequences** (`uvm/cpu_seqs.sv`):
+- `cpu_base_seq` — single read
+- `five_trans_seq` — 5 ICache reads
+- Sequences use `pre_body/post_body` for objection raise/drop
+
+**Driver** (`uvm/cpu_driver_c.sv`):
+- Read protocol: assert `cpu_rd` + address → next cycle assert `cpu_rden` → wait for `data_in_bus_cpu_lv1` or 110-cycle timeout → deassert
+- Write protocol: assert `cpu_wr` + address + data → next cycle assert `cpu_wren` → wait for `cpu_wr_done` or timeout → deassert
+
+**Scoreboard** (`uvm/cache_scoreboard_c.sv`, 553 lines):
+- Full MESI reference model: `dcache[4][index]`, `icache[4][index]`, `memory[tag,index]`
+- 3-bit pseudo-LRU per set, 4-way
+- On each CPU monitor packet: `generate_expected()` creates expected sbus_packet, `check_data()` verifies data, `check_system_packet()` compares expected vs received sbus packets, `update_cache()` updates reference model
+- Functions: `get_way_hit`, `get_way_miss`, `invalidate`, `invalidate_others`, `exist_others`, `update_lru`
+
+**Tests** (25 tests in `test/`):
+- `base_test` — configures 4 active CPUs, creates env, prints PASS/FAIL
+- `five_trans_test` — runs `five_trans_seq` on CPU0
+- Many advanced tests: `lru_eviction_test`, `mesi_full_transition_test`, `dirty_evict_refill_test`, `snoop_seq_*`, `shared_snoop_invalidate_test`, `randomized_stress_test`, etc.
+
+---
+
+### 4. MEMORY MODEL (`gold/memory.sv`)
+
+- **Sparse associative array**: `reg [31:0] mem[int]` (integer-indexed, only stores written locations)
+- **Read**: If address exists in mem, return stored value. If not, return default pattern: `32'h5555_AAAA` when `addr[3]==1`, `32'hAAAA_5555` when `addr[3]==0`
+- **Write**: `mem[addr] = data_bus_lv2_mem`, asserts `mem_wr_done` next cycle
+- **Read response**: Drives `data_bus_lv2_mem_reg` and asserts `data_in_bus_lv2_mem` for 1 cycle (all @posedge clk, 1-cycle latency)
+
+**Arbiter** (`gold/lrs_arbiter.sv`):
+- LRS (Least Recently Served) round-robin arbiter for the shared bus
+- Maintains a 4-entry queue tracking service order
+- Priority: processor requests first (via LRS queue), then snoop requests (fixed priority 0>1>2>3), then LV2 request
+- Grants are combinationally ANDed with requests; if grant drops (req goes away), all grants cleared
+
+---
+
+### 5. EXISTING `pyuvm_tb/` — WHAT'S THERE AND WHAT'S MISSING/BROKEN
+
+**What's already implemented (16 files):**
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `uvm_shim.py` (277 lines) | ✅ Complete standalone framework | Lightweight pure-Python UVM framework — implements UvmComponent, UvmDriver, UvmMonitor, UvmAgent, UvmEnv, UvmTest, UvmSequencer, UvmSequence, UvmSequenceItem, UvmAnalysisPort, UvmTlmAnalysisFifo, _UvmRoot with phase traversal (build→connect→run→check→report). Uses asyncio. **No dependency on cocotb or pyuvm library despite requirements.txt listing pyuvm.** |
+| `cache_tb_pkg.py` (103 lines) | ✅ Complete | All enums (RequestType, CacheType, AddrType, BusReqType, MesiState, etc.), constants matching SV defines, helper functions `addr_to_cache_type()`, `addr_parts()` |
+| `cpu_transaction.py` (59 lines) | ✅ Complete | CpuTransaction with `randomize()` and `randomize_with(constraints)`, mimics SV constraints for address range/cache type/expected data |
+| `sbus_packet.py` (53 lines) | ✅ Complete | SbusPacket with all fields matching SV `sbus_packet_c`, `from_model_dict()` factory |
+| `cpu_agent.py` (31 lines) | ✅ Complete | CpuAgent with sequencer, driver, monitor; expects `_cpu_id`, `_model`, `_done_q` injected by TbEnv |
+| `cpu_driver.py` (35 lines) | ✅ Complete | Drives transactions to the **Python behavioral model** (not RTL). Calls `model.read()`/`model.write()`, puts result + sbus_dict into done_q |
+| `cpu_monitor.py` (53 lines) | ✅ Complete | Publishes CpuMonPacket on `ap` and SbusPacket on `sbus_ap` |
+| `cpu_sequences.py` (45 lines) | ✅ Complete | `CpuBaseSeq` (7 mixed transactions) and `FiveTransSeq` (5 ICache reads) |
+| `mesi_cache_model.py` (361 lines) | ✅ Complete | Full behavioral MESI model: 4-core, ICache+DCache per core, LRU, snooping, invalidation, dirty writeback. Acts as **DUT replacement** |
+| `cache_scoreboard.py` (225 lines) | ✅ Complete | Full scoreboard with separate reference model, data checking, bus activity counting |
+| `tb_env.py` (34 lines) | ✅ Complete | TbEnv creates MesiCacheModel, 4 CpuAgents, CacheScoreboard, wires analysis ports |
+| `base_test.py` (46 lines) | ✅ Complete | Runs CpuBaseSeq on all 4 CPUs concurrently via asyncio.gather |
+| `five_trans_test.py` (25 lines) | ✅ Complete | Runs FiveTransSeq on CPU0 only |
+| `run_tb.py` (58 lines) | ✅ Complete | CLI runner with `--test` and `--log-level` options |
+| `requirements.txt` | Minimal | Just lists `pyuvm>=3.0` (but the shim doesn't actually use it) |
+
+**Architecture**: The Python TB runs **entirely in pure Python** using the custom `uvm_shim.py` framework. The "DUT" is `MesiCacheModel` — a behavioral Python model. There is **no RTL co-simulation** (no cocotb, no Verilator, no VPI/DPI). The driver calls `model.read()/write()` directly instead of wiggling signals.
+
+**What's MISSING or BROKEN:**
+
+1. **No RTL co-simulation**: The Python TB only tests the behavioral model against itself. It does NOT drive the actual Verilog RTL. To be a real verification environment, it would need:
+   - A cocotb-based top (or pyuvm + cocotb) that compiles the SV RTL with a simulator
+   - A proper BFM/driver that wiggles `cpu_rd`, `cpu_wr`, `cpu_rden`, `cpu_wren`, `addr_bus`, `data_bus` signals following the protocol in `cpu_driver_c.sv` (assert rd → next cycle assert rden → wait for data_in_bus → deassert)
+   - A proper monitor that samples RTL signals (data_in_bus_cpu_lv1, cpu_wr_done, data_bus)
+   - A system bus monitor equivalent to `system_bus_monitor_c.sv`
+
+2. **Scoreboard has dual reference models**: Both `cache_scoreboard.py` and `mesi_cache_model.py` contain independent MESI models. The scoreboard compares the model's output against *its own internal model* — essentially model-vs-model, not model-vs-RTL. This means bugs would only be caught if the two Python models diverge.
+
+3. **LRU logic inconsistency in `mesi_cache_model.py`**: The ICache LRU update for way 3 uses `s.lru = (s.lru & 0b001) & 0b010` which always yields 0 — this doesn't match the SV scoreboard's `lru[2]=0; lru[0]=0` logic precisely (SV preserves bit 1, Python clears it).
+
+4. **Missing test coverage**: Only 2 tests ported (base_test, five_trans_test). The SV testbench has 25 tests including LRU eviction, MESI full transitions, dirty eviction, snoop sequences, stress tests, APB tests, etc. None of these advanced tests are ported.
+
+5. **No assertion checking**: The SV interfaces (`cpu_lv1_interface.sv`, `system_bus_interface.sv`) contain ~20 SVA assertions (simultaneous rd/wr, timeout, signal stability, one-hot grants, etc.). None are replicated in Python.
+
+6. **No APB/MESI-LRU monitoring**: The SV TB has `cpu_apb_interface`, `lv2_apb_interface`, `cpu_mesi_lru_interface` for deep observability. The Python TB has none of this.
+
+7. **`requirements.txt` mismatch**: Lists `pyuvm>=3.0` but the code uses the custom `uvm_shim.py` and doesn't import pyuvm anywhere.
+
+8. **No virtual sequences**: The SV TB has `virtual_sequencer_c` and `virtual_seqs.sv` for coordinating multi-core sequences. The Python TB doesn't have an equivalent — `BaseTest` just does `asyncio.gather()` manually.

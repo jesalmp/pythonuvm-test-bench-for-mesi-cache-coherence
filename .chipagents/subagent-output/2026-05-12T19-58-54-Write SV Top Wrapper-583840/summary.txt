@@ -1,0 +1,15 @@
+File created successfully at `pyuvm_cocotb_tb/hdl/top_tb.sv` (156 lines). The file contains:
+
+- **Module `top_tb`** with no ports
+- **Clock**: `reg clk` with 10ns period (`initial begin clk=0; forever #5 clk=~clk; end`)
+- **Reset**: `reg resetn` deasserted after 20ns (`initial begin resetn=0; #20 resetn=1; end`)
+- **Per-CPU signals**: 4× `data_bus_cpu_lv1_N` wires, `data_bus_cpu_lv1_N_reg` regs with continuous assigns, `addr_bus_cpu_lv1_N` regs, `cpu_rd/cpu_wr/cpu_rden/cpu_wren` [3:0] regs, `cpu_wr_done/data_in_bus_cpu_lv1` [3:0] wires
+- **Memory interface**: `data_bus_lv2_mem`, `addr_bus_lv2_mem`, `mem_rd`, `mem_wr`, `mem_wr_done`, `data_in_bus_lv2_mem` wires
+- **Arbiter signals**: all `bus_lv1_lv2_gnt/req_proc/snoop/lv2` wires
+- **APB delayed signals**: `lv2_rd_ps`, `lv2_rd_pe`, `lv2_wren`, `cp_in_cacheen` with 2-cycle delay via intermediate regs (`lv2_rd_reg`, `lv2_rd_px`, `lv2_wr_reg`, `cp_in_cache_reg`) sourced from `inst_cache_top.cache_wrapper_lv2_inst.*`
+- **DUT instantiation** (`cache_top inst_cache_top`) with all specified port connections
+- **Memory instantiation** (`memory inst_memory`)
+- **Arbiter instantiation** (`lrs_arbiter inst_arbiter`)
+- **Initial block** setting all cocotb-driven regs to 0/Z
+- **VCD dump** (`dump.vcd`, `$dumpvars(0, top_tb)`)
+- **No comments** in the file

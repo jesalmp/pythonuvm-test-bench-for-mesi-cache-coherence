@@ -1,0 +1,3 @@
+commands = [
+  "mkdir -p /mnt/c/College/projects/PythonUVM-Test-Bench-for-MESI-Cache-Coherence/pyuvm_cocotb_tb/hdl"
+]

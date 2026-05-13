@@ -1,0 +1,82 @@
+Here is a structured summary of all files read, with their complete contents already returned inline above. Let me provide the organized reference:
+
+---
+
+## Files Read — Complete Contents
+
+### 1. **uvm/top.sv** (365 lines) — Top-level testbench
+- Conditionally defines `INST_TOP_CORE` for one/dual/multi-core configs
+- **Interfaces instantiated**: `cpu_lv1_interface inst_cpu_lv1_if[0:3](clk)`, `system_bus_interface inst_system_bus_if(clk)`, `cpu_mesi_lru_interface inst_cpu_mesi_lru_if[0:3](clk)`, `cpu_apb_interface inst_cpu_apb_if[0:3](clk)`, `lv2_apb_interface inst_lv2_apb_if(clk)`
+- **DUT**: `cache_top inst_cache_top` — wired with per-core data/addr buses, cpu_rd/wr/rden/wren, arbiter grants, memory buses
+- **Golden models**: `memory inst_memory` and `lrs_arbiter inst_arbiter`
+- **Clock**: 10ns period (5ns half), **Reset**: deasserted after 10ns
+- **Delayed signals**: `lv2_rd_ps`, `lv2_rd_pe`, `lv2_wren`, `cp_in_cacheen` — each delayed 2 cycles from DUT internal signals
+- **uvm_config_db** sets virtual interfaces for each CPU agent and system bus
+
+### 2. **uvm/cpu_driver_c.sv** (164 lines) — CPU Driver
+- **Read protocol** (`drv_rd_trans`):
+  1. `@(posedge clk)`: assert `cpu_rd=1`, drive `addr_bus_cpu_lv1`
+  2. `@(posedge clk)`: assert `cpu_rden=1`
+  3. Wait for `data_in_bus_cpu_lv1` posedge OR 110-cycle timeout
+  4. `@(posedge clk)`: deassert `cpu_rd=0`, release addr to Z
+  5. `@(posedge clk)`: deassert `cpu_rden=0`, disable fork
+  6. Wait for `negedge data_in_bus_cpu_lv1` or posedge clk, then one more posedge clk
+
+- **Write protocol** (`drv_wr_trans`):
+  1. `@(posedge clk)`: assert `cpu_wr=1`, drive `addr_bus_cpu_lv1`, drive `data_bus_cpu_lv1_reg`
+  2. `@(posedge clk)`: assert `cpu_wren=1`
+  3. Wait for `cpu_wr_done` posedge OR 110-cycle timeout
+  4. `@(posedge clk)`: deassert `cpu_wr=0`, release addr/data to Z
+  5. `@(posedge clk)`: deassert `cpu_wren=0`, disable fork
+  6. Wait for `negedge cpu_wr_done` or posedge clk, then one more posedge clk
+
+### 3. **uvm/system_bus_monitor_c.sv** (241 lines) — System Bus Monitor
+- Triggers on `posedge |bus_lv1_lv2_gnt_proc`
+- Detects dirty eviction (lv2_wr without bus_rd/bus_rdx/invalidate)
+- Waits for `bus_rd | bus_rdx | invalidate | lv2_rd` to classify request type
+- Monitors `cp_in_cache`, `shared`, snoop grant/write, data service
+- Completes on `negedge bus_lv1_lv2_req_proc[i]` then negedge of the request signal
+- Writes `sbus_packet_c` to scoreboard via analysis port
+
+### 4. **design/cache_top.sv** (332 lines) — Cache Top
+- Parameterized with LV1 and LV2 cache parameters
+- Internal wires: `data_bus_lv1_lv2`, `addr_bus_lv1_lv2`, `lv2_rd`, `lv2_wr`, `cp_in_cache`
+- APB signal generation: `psel`, `penable`, `pwrite`, `pwdata`, `lv2_wr_done`, `data_in_bus_lv1_lv2`
+- Instantiates `cache_wrapper_lv2` and conditionally one of `cache_lv1_onecore`, `cache_lv1_dualcore`, or `cache_lv1_multicore`
+
+### 5. **gold/memory.sv** (52 lines) — Memory Golden Model
+- Associative array `mem[int]`; responds in 1 clock cycle
+- Read: returns stored data or default `addr[3] ? 32'h5555_aaaa : 32'haaaa_5555`
+- Write: stores `data_bus_lv2_mem` at `addr_bus_lv2_mem`, asserts `mem_wr_done`
+
+### 6. **gold/lrs_arbiter.sv** (129 lines) — LRS Arbiter
+- LRU-based round-robin arbiter with a `queue[4]` tracking last-recently-served
+- `gnt_proc` assigned based on queue priority + request; `update_q()` moves granted proc to back
+- Snoop grant: fixed priority (0→1→2→3→lv2), only when proc_gnt is active
+- Drop logic: clears grants when requestor drops its request
+
+### 7. **sim/file_list.f** (52 lines) — File List
+- Include dirs: `../uvm`, `../test`
+- Design files: LV2 defs/modules, LV1 defs/modules, `cache_top.sv`
+- Golden models: `memory.sv`, `lrs_arbiter.sv`
+- Testbench: all 5 interfaces, `cpu_pkg.sv`, `top.sv`
+
+### Supporting Files Also Read:
+- **uvm/cpu_lv1_interface.sv** (172 lines): signals `data_bus_cpu_lv1` (wire via reg), `addr_bus_cpu_lv1`, `cpu_rd`, `cpu_wr`, `cpu_rden`, `cpu_wren`, `cpu_wr_done`, `data_in_bus_cpu_lv1`; 12 assertions
+- **uvm/system_bus_interface.sv** (128 lines): wires for `data_bus_lv1_lv2`, `addr_bus_lv1_lv2`, `bus_rd/rdx`, `lv2_rd/wr`, `cp_in_cache`, `shared`, `invalidate`, `all_invalidation_done`; logic for grant/req signals; 9 assertions
+- **uvm/sbus_packet_c.sv** (113 lines): enums `bus_req_t`, `bus_req_proc_t`, `serv_by_t`; fields for request type, proc num, address, snoop info, data, eviction info; custom `do_compare`
+- **uvm/cpu_transaction_c.sv** (85 lines): `request_t {READ_REQ, WRITE_REQ}`, `access_cache_t {ICACHE_ACC, DCACHE_ACC}`, address constraints with I/D-cache boundary at `32'h3FFF_FFFF`
+- **uvm/cpu_monitor_c.sv** (101 lines): monitors cpu_rd/cpu_wr, captures address/data, detects illegal I-cache writes
+- **uvm/cpu_mon_packet_c.sv** (44 lines): `addr_t {ICACHE, DCACHE}`, fields: `request_type`, `addr_type`, `dat`, `address`, `num_cycles`, `illegal`
+- **uvm/cpu_agent_c.sv** (44 lines): creates monitor, driver, sequencer
+- **uvm/cpu_seqs.sv** (68 lines): `cpu_base_seq` (1 read), `five_trans_seq` (5 I-cache reads)
+- **uvm/virtual_seqs.sv** (81 lines): `base_vseq` with `do_on_cpu()` task
+- **uvm/virtual_sequencer_c.sv** (20 lines): holds `cpu_seqr[0:3]`
+- **uvm/cache_scoreboard_c.sv** (553 lines): full reference model with LRU, MESI state tracking, memory model, expected vs received comparison
+- **uvm/env.sv** (60 lines): creates 4 cpu agents, vsequencer, sbus_monitor, scoreboard; connects analysis ports
+- **uvm/cpu_mesi_lru_interface.sv** (337 lines): MESI proc/snoop covergroups, LRU covergroups
+- **uvm/cpu_apb_interface.sv** (399 lines): APB assertions and coverage per CPU
+- **uvm/lv2_apb_interface.sv** (400 lines): APB assertions and coverage for LV2
+- **gold/apb_memory.sv** (99 lines): APB-interfaced memory
+- **design/lv1/def_lv1.sv** (61 lines): LV1 params — 32-bit addr/data, 14-bit index, 2-bit offset, 16-bit tag, 4-way, I/D boundary `32'h3FFF_FFFF`
+- **design/lv2/def_lv2.sv** (55 lines): LV2 params — 32-bit addr/data, 18-bit index, 2-bit offset, 12-bit tag, 8-way
